@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, X, Sun, Moon, Users, UserCheck, Settings, BarChart3, RefreshCw, Upload, Cloud, CloudOff } from 'lucide-react';
+import { Search, X, Sun, Moon, Users, UserCheck, Settings, BarChart3, RefreshCw, Upload, Cloud, CloudOff, LogOut } from 'lucide-react';
 import ProfileCard from './ProfileCard';
 import SettingsModal from './SettingsModal';
 import ReportsTab from './ReportsTab';
@@ -14,7 +14,7 @@ import {
 } from '../utils/firebase';
 import '../styles/components.css';
 
-const Dashboard = () => {
+const Dashboard = ({ user, onLogout }) => {
     const { settings } = useSettings();
     const [guests, setGuests] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -247,6 +247,11 @@ const Dashboard = () => {
                     {viewMode === 'admin' && (
                         <button className="theme-toggle" onClick={() => setIsSettingsOpen(true)} title="Settings">
                             <Settings size={18} />
+                        </button>
+                    )}
+                    {onLogout && (
+                        <button className="theme-toggle logout-btn" onClick={onLogout} title="Sign Out">
+                            <LogOut size={18} />
                         </button>
                     )}
                 </div>
