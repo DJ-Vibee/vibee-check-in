@@ -8,6 +8,15 @@ const ProfileCard = ({ guest, onToggle, jotformUrl }) => {
     const hasGondola = guest.gondolaAddon && guest.gondolaAddon !== '';
     const hasWellness = guest.wellness && guest.wellness !== '';
 
+    // Display name for ticket types
+    const getTicketDisplayName = (type) => {
+        const displayNames = {
+            'STD': 'Signature',
+            'VIP': 'VIP'
+        };
+        return displayNames[type] || type;
+    };
+
     const getWaiverUrl = () => {
         const orderNum = guest.orderNumber?.replace('#', '') || '';
         const baseUrl = jotformUrl || 'https://vibee.jotform.com/251891714013958';
@@ -30,7 +39,7 @@ const ProfileCard = ({ guest, onToggle, jotformUrl }) => {
 
             <div className="card-header">
                 <h3 className="guest-name">{guest.billingFirst} {guest.billingLast}</h3>
-                <span className={`ticket-badge ${!isVIP ? 'standard' : ''}`}>{guest.ticketType}</span>
+                <span className={`ticket-badge ${!isVIP ? 'standard' : ''}`}>{getTicketDisplayName(guest.ticketType)}</span>
                 {guest.checked && (
                     <span className="status-text"><Check size={12} /> Checked In</span>
                 )}

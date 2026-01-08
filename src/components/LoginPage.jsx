@@ -164,11 +164,11 @@ const LoginPage = ({ onLogin }) => {
         <div className="login-container">
             <div className="login-box glass-panel">
                 <div className="login-header">
-                    <h1>{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h1>
+                    <h1>Welcome Back</h1>
                     <p>Vibee Check-In System</p>
                 </div>
 
-                <form onSubmit={mode === 'login' ? handleLogin : handleSignup}>
+                <form onSubmit={handleLogin}>
                     {error && (
                         <div className="login-error">
                             <AlertCircle size={16} />
@@ -205,15 +205,13 @@ const LoginPage = ({ onLogin }) => {
                         </div>
                     </div>
 
-                    {mode === 'login' && (
-                        <button
-                            type="button"
-                            className="forgot-password"
-                            onClick={() => setMode('reset')}
-                        >
-                            Forgot password?
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        className="forgot-password"
+                        onClick={() => setMode('reset')}
+                    >
+                        Forgot password?
+                    </button>
 
                     <button
                         type="submit"
@@ -221,27 +219,9 @@ const LoginPage = ({ onLogin }) => {
                         disabled={loading}
                     >
                         <LogIn size={18} />
-                        {loading ? 'Please wait...' : (mode === 'login' ? 'Sign In' : 'Create Account')}
+                        {loading ? 'Please wait...' : 'Sign In'}
                     </button>
                 </form>
-
-                <div className="login-footer">
-                    {mode === 'login' ? (
-                        <p>
-                            Don't have an account?{' '}
-                            <button onClick={() => { setMode('signup'); setError(''); }}>
-                                Sign up
-                            </button>
-                        </p>
-                    ) : (
-                        <p>
-                            Already have an account?{' '}
-                            <button onClick={() => { setMode('login'); setError(''); }}>
-                                Sign in
-                            </button>
-                        </p>
-                    )}
-                </div>
             </div>
         </div>
     );

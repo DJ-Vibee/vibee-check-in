@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, X, Sun, Moon, Users, UserCheck, Settings, BarChart3, RefreshCw, Upload, Cloud, CloudOff, LogOut } from 'lucide-react';
+import { Search, X, Sun, Moon, Users, UserCheck, Settings, BarChart3, RefreshCw, Upload, Cloud, CloudOff, LogOut, User, UsersRound } from 'lucide-react';
 import ProfileCard from './ProfileCard';
 import SettingsModal from './SettingsModal';
+import UserAccountModal from './UserAccountModal';
+import TeamManagementModal from './TeamManagementModal';
 import ReportsTab from './ReportsTab';
 import guestData from '../utils/guestData.json';
 import { useSettings } from '../utils/SettingsContext';
@@ -10,24 +12,28 @@ import {
     subscribeToGuests,
     updateGuestField,
     hasGuestData,
-    uploadGuestsFromJson
+    uploadGuestsFromJson,
+    logActivity
 } from '../utils/firebase';
 import '../styles/components.css';
 
-const Dashboard = ({ user, onLogout }) => {
+const Dashboard = ({ user, onLogout, isAdmin, userRole }) => {
     const { settings } = useSettings();
     const [guests, setGuests] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState('All');
-    const [viewMode, setViewMode] = useState('admin');
+    // Non-admins default to customer view
+    const [viewMode, setViewMode] = useState(isAdmin ? 'admin' : 'customer');
     const [activeTab, setActiveTab] = useState('guests'); // 'guests' or 'reports'
     const [isImportOpen, setIsImportOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isTeamOpen, setIsTeamOpen] = useState(false);
     const [importText, setImportText] = useState('');
     const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
     const [isVerifyingWaivers, setIsVerifyingWaivers] = useState(false);
     const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [isUserAccountOpen, setIsUserAccountOpen] = useState(false);
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -107,7 +113,7 @@ const Dashboard = ({ user, onLogout }) => {
 
     const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-    // Handle toggle with Firebase sync
+    // Handle toggle with Firebase sync and activity logging
     const handleToggle = async (id, field) => {
         const guest = guests.find(g => g.id === id);
         if (!guest) return;
@@ -120,6 +126,25 @@ const Dashboard = ({ user, onLogout }) => {
         // If connected to Firebase, sync the change
         if (isFirebaseConnected && guest.orderNumber) {
             await updateGuestField(guest.orderNumber, field, newValue);
+
+            // Log the activity
+            if (newValue) { // Only log when enabling (check-in, pickup, etc.)
+                const actionNames = {
+                    checked: 'Checked in',
+                    laminatePickUp: 'Laminate pickup',
+                    gondola: 'Gondola pickup',
+                    wellnessPU: 'Wellness pickup',
+                    idChecked: 'ID verified'
+                };
+
+                await logActivity({
+                    action: actionNames[field] || field,
+                    guestName: `${guest.billingFirst} ${guest.billingLast}`,
+                    orderNumber: guest.orderNumber,
+                    performedBy: user?.displayName || user?.email || 'Unknown',
+                    performedByEmail: user?.email
+                });
+            }
         }
     };
 
@@ -186,74 +211,92 @@ const Dashboard = ({ user, onLogout }) => {
     return (
         <div className="dashboard">
             <header className="dashboard-header glass-panel">
-                <div className="header-content">
+                <div className="header-row">
                     <div className="header-left">
                         <h1>{settings.headerName || 'Check-In System'}</h1>
-                        <span className="header-subtitle">{settings.headerSubtitle || 'Vibee Experience 2026'}</span>
-                        {/* Firebase connection indicator */}
-                        <span className={`sync-indicator ${isFirebaseConnected ? 'connected' : 'disconnected'}`}>
-                            {isFirebaseConnected ? <Cloud size={14} /> : <CloudOff size={14} />}
-                            {isFirebaseConnected ? 'Synced' : 'Local'}
-                        </span>
-                    </div>
-                    <div className="stats-row">
-                        <div className="stat-pill">
-                            <Users size={14} />
-                            <span>{stats.total}</span>
-                        </div>
-                        <div className="stat-pill checked">
-                            <UserCheck size={14} />
-                            <span>{stats.checkedIn}</span>
+                        <div className="header-meta">
+                            <span className="header-subtitle">{settings.headerSubtitle || 'Vibee Experience 2026'}</span>
+                            <span className={`sync-indicator ${isFirebaseConnected ? 'connected' : 'disconnected'}`}>
+                                {isFirebaseConnected ? <Cloud size={14} /> : <CloudOff size={14} />}
+                                {isFirebaseConnected ? 'Synced' : 'Local'}
+                            </span>
+                            {isAdmin && (
+                                <span className="admin-badge">Admin</span>
+                            )}
                         </div>
                     </div>
-                </div>
 
-                <div className="header-actions">
-                    {viewMode === 'admin' && (
-                        <div className="tab-toggle">
-                            <button
-                                className={`tab-btn ${activeTab === 'guests' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('guests')}
-                            >
-                                <Users size={16} /> Guests
-                            </button>
-                            <button
-                                className={`tab-btn ${activeTab === 'reports' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('reports')}
-                            >
-                                <BarChart3 size={16} /> Reports
-                            </button>
+                    <div className="header-right">
+                        <div className="stats-row">
+                            <div className="stat-pill">
+                                <Users size={14} />
+                                <span>{stats.total}</span>
+                            </div>
+                            <div className="stat-pill checked">
+                                <UserCheck size={14} />
+                                <span>{stats.checkedIn}</span>
+                            </div>
                         </div>
-                    )}
-                    <div className="view-toggle">
-                        <button
-                            className={`view-btn ${viewMode === 'admin' ? 'active' : ''}`}
-                            onClick={() => { setViewMode('admin'); setActiveTab('guests'); }}
-                            title="Admin View"
-                        >
-                            Admin
+
+                        {viewMode === 'admin' && (
+                            <div className="tab-toggle">
+                                <button
+                                    className={`tab-btn ${activeTab === 'guests' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('guests')}
+                                >
+                                    <Users size={16} /> Guests
+                                </button>
+                                <button
+                                    className={`tab-btn ${activeTab === 'reports' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('reports')}
+                                >
+                                    <BarChart3 size={16} /> Reports
+                                </button>
+                            </div>
+                        )}
+
+                        {/* View toggle only for admins */}
+                        {isAdmin && (
+                            <div className="view-toggle">
+                                <button
+                                    className={`view-btn ${viewMode === 'admin' ? 'active' : ''}`}
+                                    onClick={() => { setViewMode('admin'); setActiveTab('guests'); }}
+                                    title="Admin View"
+                                >
+                                    Admin
+                                </button>
+                                <button
+                                    className={`view-btn ${viewMode === 'customer' ? 'active' : ''}`}
+                                    onClick={() => setViewMode('customer')}
+                                    title="Customer View"
+                                >
+                                    Customer
+                                </button>
+                            </div>
+                        )}
+
+                        <button className="theme-toggle" onClick={toggleTheme} title={`${theme === 'dark' ? 'Light' : 'Dark'} mode`}>
+                            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                         </button>
-                        <button
-                            className={`view-btn ${viewMode === 'customer' ? 'active' : ''}`}
-                            onClick={() => setViewMode('customer')}
-                            title="Customer View"
-                        >
-                            Customer
+                        {isAdmin && (
+                            <button className="theme-toggle" onClick={() => setIsTeamOpen(true)} title="Team Management">
+                                <UsersRound size={18} />
+                            </button>
+                        )}
+                        {isAdmin && (
+                            <button className="theme-toggle" onClick={() => setIsSettingsOpen(true)} title="Settings">
+                                <Settings size={18} />
+                            </button>
+                        )}
+                        <button className="user-btn" onClick={() => setIsUserAccountOpen(true)} title="Account Settings">
+                            <User size={18} />
                         </button>
+                        {onLogout && (
+                            <button className="theme-toggle logout-btn" onClick={onLogout} title="Sign Out">
+                                <LogOut size={18} />
+                            </button>
+                        )}
                     </div>
-                    <button className="theme-toggle" onClick={toggleTheme} title={`${theme === 'dark' ? 'Light' : 'Dark'} mode`}>
-                        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                    </button>
-                    {viewMode === 'admin' && (
-                        <button className="theme-toggle" onClick={() => setIsSettingsOpen(true)} title="Settings">
-                            <Settings size={18} />
-                        </button>
-                    )}
-                    {onLogout && (
-                        <button className="theme-toggle logout-btn" onClick={onLogout} title="Sign Out">
-                            <LogOut size={18} />
-                        </button>
-                    )}
                 </div>
             </header>
 
@@ -372,6 +415,12 @@ const Dashboard = ({ user, onLogout }) => {
 
             {/* Settings Modal */}
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
+            {/* User Account Modal */}
+            <UserAccountModal isOpen={isUserAccountOpen} onClose={() => setIsUserAccountOpen(false)} user={user} />
+
+            {/* Team Management Modal (Admin only) */}
+            {isAdmin && <TeamManagementModal isOpen={isTeamOpen} onClose={() => setIsTeamOpen(false)} />}
         </div>
     );
 };

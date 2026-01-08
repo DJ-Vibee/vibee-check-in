@@ -17,6 +17,155 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
 
+// ===== TEAM MANAGEMENT =====
+// Permission levels:
+// - 'admin': Full access (guests tab, reports tab, settings, add guests)
+// - 'staff': Can check in guests (customer view only)
+
+// Super admin (always has access, cannot be removed)
+const SUPER_ADMINS = ['david.joe@vibee.com'];
+
+/**
+ * Check if user is a super admin
+ */
+export const isSuperAdmin = (email) => {
+    if (!email) return false;
+    return SUPER_ADMINS.includes(email.toLowerCase());
+};
+
+/**
+ * Get team member from Firebase
+ */
+export const getTeamMember = async (email) => {
+    if (!email) return null;
+
+    // Super admins are always admins
+    if (isSuperAdmin(email)) {
+        return { email, role: 'admin', name: 'Super Admin' };
+    }
+
+    try {
+        const teamRef = ref(database, 'team');
+        const snapshot = await get(teamRef);
+        if (snapshot.exists()) {
+            const members = snapshot.val();
+            const key = Object.keys(members).find(k =>
+                members[k].email?.toLowerCase() === email.toLowerCase()
+            );
+            if (key) {
+                return { id: key, ...members[key] };
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error('Error getting team member:', error);
+        return null;
+    }
+};
+
+/**
+ * Check if user is an admin
+ */
+export const isAdmin = async (email) => {
+    if (!email) return false;
+    if (isSuperAdmin(email)) return true;
+
+    const member = await getTeamMember(email);
+    return member?.role === 'admin';
+};
+
+/**
+ * Check if user is a team member (has any access)
+ */
+export const isTeamMember = async (email) => {
+    if (!email) return false;
+    if (isSuperAdmin(email)) return true;
+
+    const member = await getTeamMember(email);
+    return member !== null;
+};
+
+/**
+ * Get all team members
+ */
+export const getTeamMembers = async () => {
+    try {
+        const teamRef = ref(database, 'team');
+        const snapshot = await get(teamRef);
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            return Object.keys(data).map(key => ({ id: key, ...data[key] }));
+        }
+        return [];
+    } catch (error) {
+        console.error('Error getting team members:', error);
+        return [];
+    }
+};
+
+/**
+ * Subscribe to team changes
+ */
+export const subscribeToTeam = (callback) => {
+    const teamRef = ref(database, 'team');
+    return onValue(teamRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            callback(Object.keys(data).map(key => ({ id: key, ...data[key] })));
+        } else {
+            callback([]);
+        }
+    });
+};
+
+/**
+ * Add a team member
+ */
+export const addTeamMember = async (member) => {
+    try {
+        const teamRef = ref(database, 'team');
+        const newMemberRef = push(teamRef);
+        await set(newMemberRef, {
+            email: member.email.toLowerCase(),
+            name: member.name || '',
+            role: member.role || 'staff',
+            addedAt: new Date().toISOString()
+        });
+        return true;
+    } catch (error) {
+        console.error('Error adding team member:', error);
+        return false;
+    }
+};
+
+/**
+ * Update a team member's role
+ */
+export const updateTeamMember = async (memberId, updates) => {
+    try {
+        const memberRef = ref(database, `team/${memberId}`);
+        await update(memberRef, updates);
+        return true;
+    } catch (error) {
+        console.error('Error updating team member:', error);
+        return false;
+    }
+};
+
+/**
+ * Remove a team member
+ */
+export const removeTeamMember = async (memberId) => {
+    try {
+        const memberRef = ref(database, `team/${memberId}`);
+        await set(memberRef, null);
+        return true;
+    } catch (error) {
+        console.error('Error removing team member:', error);
+        return false;
+    }
+};
+
 // ===== SETTINGS =====
 
 /**
@@ -173,6 +322,62 @@ export const hasGuestData = async () => {
         console.error('Error checking guest data:', error);
         return false;
     }
+};
+
+// ===== ACTIVITY LOGGING =====
+
+/**
+ * Log an activity (check-in, laminate pickup, etc.)
+ */
+export const logActivity = async (activity) => {
+    try {
+        const logsRef = ref(database, 'activityLogs');
+        const newLogRef = push(logsRef);
+        await set(newLogRef, {
+            ...activity,
+            timestamp: new Date().toISOString()
+        });
+        return true;
+    } catch (error) {
+        console.error('Error logging activity:', error);
+        return false;
+    }
+};
+
+/**
+ * Get recent activity logs
+ */
+export const getActivityLogs = async (limit = 100) => {
+    try {
+        const logsRef = ref(database, 'activityLogs');
+        const snapshot = await get(logsRef);
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            const logs = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+            // Sort by timestamp descending and limit
+            return logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, limit);
+        }
+        return [];
+    } catch (error) {
+        console.error('Error getting activity logs:', error);
+        return [];
+    }
+};
+
+/**
+ * Subscribe to activity log changes
+ */
+export const subscribeToActivityLogs = (callback, limit = 50) => {
+    const logsRef = ref(database, 'activityLogs');
+    return onValue(logsRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            const logs = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+            callback(logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, limit));
+        } else {
+            callback([]);
+        }
+    });
 };
 
 export { database };
